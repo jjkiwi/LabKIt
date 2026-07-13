@@ -13,9 +13,14 @@ no backend. Open `index.html` in a browser (desktop or phone) and go.
   reaction-mix component volumes for a given number of samples/controls, with a
   configurable pipetting-error buffer. Components can be excluded from the shared
   mix (e.g. DNA template) and are aliquoted separately.
-
-More tools (dilution calculator, multi-timer, RPM↔RCF converter) are planned —
-see the design brief for full specs.
+- **🧪 Dilution Calculator** (`tools/dilution.html`) — solves C1·V1 = C2·V2 for
+  whichever value you mark to calculate, with unit selection and a ready-to-use
+  pipetting protocol ("draw X µL of stock, top up to Y µL").
+- **⏱️ Multi-Timer** (`tools/timers.html`) — runs several independently named
+  countdowns at once (incubation, spins, heating block…) with quick-start presets
+  and an audible alarm when a timer finishes.
+- **🧮 RPM ↔ RCF Converter** (`tools/rcf.html`) — converts centrifuge speed to
+  relative centrifugal force and back, with saved rotors for quick recall.
 
 ## Features
 
@@ -35,6 +40,9 @@ LabKit/
   assets/style.css       — shared pastel theme (variables, components)
   tools/wells.html        — Well Tracker
   tools/mastermix.html    — Mastermix Calculator
+  tools/dilution.html     — Dilution Calculator
+  tools/timers.html       — Multi-Timer
+  tools/rcf.html          — RPM ↔ RCF Converter
 ```
 
 ## Running locally

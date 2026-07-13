@@ -24,10 +24,6 @@
   .tool-card .emoji { font-size: 38px; }
   .tool-card .name { font-size: 17px; font-weight: 700; }
   .tool-card .desc { font-size: 13px; color: var(--muted); line-height: 1.4; }
-  .tool-card.disabled {
-    cursor: default; opacity: .6; pointer-events: none; position: relative;
-  }
-  .soon { align-self: flex-start; font-size: 11px; background: var(--accent-soft); color: var(--accent); border-radius: 999px; padding: 2px 10px; font-weight: 600; }
   footer { text-align: center; color: var(--muted); font-size: 12px; margin: 40px 0 10px; }
 </style>
 </head>
@@ -55,24 +51,21 @@
         <div class="name" data-i18n="mmName">Kalkulator mastermixu</div>
         <div class="desc" data-i18n="mmDesc">Policz objętości składników PCR/qPCR z zapasem na błąd pipetowania.</div>
       </a>
-      <div class="tool-card disabled">
-        <span class="soon" data-i18n="soon">Wkrótce</span>
+      <a class="tool-card" href="tools/dilution.html">
         <div class="emoji">🧪</div>
         <div class="name" data-i18n="dilName">Kalkulator rozcieńczeń</div>
         <div class="desc" data-i18n="dilDesc">C1V1 = C2V2 — przeliczanie stężeń i objętości.</div>
-      </div>
-      <div class="tool-card disabled">
-        <span class="soon" data-i18n="soon">Wkrótce</span>
+      </a>
+      <a class="tool-card" href="tools/timers.html">
         <div class="emoji">⏱️</div>
         <div class="name" data-i18n="timerName">Multi-timer</div>
         <div class="desc" data-i18n="timerDesc">Kilka nazwanych odliczań naraz — inkubacja, wirowanie i więcej.</div>
-      </div>
-      <div class="tool-card disabled">
-        <span class="soon" data-i18n="soon">Wkrótce</span>
+      </a>
+      <a class="tool-card" href="tools/rcf.html">
         <div class="emoji">🧮</div>
         <div class="name" data-i18n="rcfName">RPM ↔ RCF</div>
         <div class="desc" data-i18n="rcfDesc">Przelicznik prędkości wirowania na siłę odśrodkową (×g).</div>
-      </div>
+      </a>
     </div>
 
     <footer data-i18n="footer">Działa offline. Stan każdego narzędzia zapisywany lokalnie w przeglądarce.</footer>
@@ -87,7 +80,6 @@ const DICT = {
     dilName: "Kalkulator rozcieńczeń", dilDesc: "C1V1 = C2V2 — przeliczanie stężeń i objętości.",
     timerName: "Multi-timer", timerDesc: "Kilka nazwanych odliczań naraz — inkubacja, wirowanie i więcej.",
     rcfName: "RPM ↔ RCF", rcfDesc: "Przelicznik prędkości wirowania na siłę odśrodkową (×g).",
-    soon: "Wkrótce",
     footer: "Działa offline. Stan każdego narzędzia zapisywany lokalnie w przeglądarce.",
   },
   en: {
@@ -97,7 +89,6 @@ const DICT = {
     dilName: "Dilution Calculator", dilDesc: "C1V1 = C2V2 — convert between concentrations and volumes.",
     timerName: "Multi-Timer", timerDesc: "Run several named countdowns at once — incubation, spins, and more.",
     rcfName: "RPM ↔ RCF", rcfDesc: "Convert centrifuge speed to relative centrifugal force (×g) and back.",
-    soon: "Coming soon",
     footer: "Works offline. Each tool's state is saved locally in your browser.",
   },
 };

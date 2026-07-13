@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LabKit — Multi-timer</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+  #app { display: none; max-width: 980px; margin: 0 auto; }
+  @keyframes flash {
+    0%, 100% { box-shadow: 0 0 0 3px #ffc8dd, var(--shadow); }
+    50% { box-shadow: 0 0 0 3px rgba(255,200,221,0), var(--shadow); }
+  }
+  .presets { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 14px; align-items: center; }
+  .presets .lbl { font-size: 12px; color: var(--muted); }
+  .empty-state {
+    text-align: center; color: var(--muted); padding: 44px 20px;
+    background: var(--panel); border-radius: 16px; box-shadow: var(--shadow);
+  }
+  .empty-state .emoji { font-size: 42px; margin-bottom: 10px; }
+  .timer-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; }
+  .timer-card { background: var(--panel); border-radius: 16px; padding: 16px; box-shadow: var(--shadow); }
+  .timer-card.done { animation: flash 1s steps(1, end) infinite; }
+  .timer-card input.name {
+    font: inherit; font-weight: 600; font-size: 15px; border: none; background: transparent;
+    color: var(--text); width: 100%; padding: 0; margin-bottom: 6px;
+  }
+  .timer-card .time { font-size: 36px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .02em; color: var(--text); }
+  .timer-card.done .time { color: #e0559a; }
+  .timer-card .row { display: flex; gap: 8px; margin-top: 14px; }
+  .timer-card .sp-btn { flex: 1; font-weight: 600; border-radius: 10px; padding: 9px 8px; }
+  .timer-card .sp-btn.running { border: 1px solid var(--line); background: var(--panel2); color: var(--text); }
+  .timer-card .sp-btn.stopped { border: 1px solid var(--accent); background: var(--accent); color: #fff; }
+  .icon-btn { padding: 9px 11px; }
+  .icon-btn:hover { color: #e0559a; border-color: #e0559a; }
+</style>
+</head>
+<body>
+
+  <div class="lang-toggle">
+    <button id="btnPl" class="active">PL</button>
+    <button id="btnEn">EN</button>
+  </div>
+
+  <!-- START SCREEN -->
+  <div id="start">
+    <h1 data-i18n="startTitle">⏱️ Multi-timer</h1>
+    <p data-i18n="startDesc">Kilka nazwanych odliczań naraz — inkubacja, wirowanie, blok grzejny. Wybierz urządzenie — dopasuję układ.</p>
+    <div class="devices">
+      <div class="device-card" data-device="phone">
+        <div class="emoji">📱</div><div class="name" data-i18n="devPhone">Telefon</div><div class="desc" data-i18n="devPhoneDesc">Duże przyciski, wygodny dotyk</div>
+      </div>
+      <div class="device-card" data-device="desktop">
+        <div class="emoji">💻</div><div class="name" data-i18n="devDesktop">Komputer</div><div class="desc" data-i18n="devDesktopDesc">Widok kilku timerów naraz</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app">
+    <div class="topbar">
+      <a class="home-link" href="../index.html">← <span data-i18n="home">Strona główna</span></a>
+    </div>
+    <h2 data-i18n="appTitle">⏱️ Multi-timer</h2>
+    <p class="sub" data-i18n="appSub">Kilka nazwanych odliczań naraz — inkubacja, wirowanie, blok grzejny… Alarm po upływie.</p>
+
+    <div class="panel">
+      <div class="controls">
+        <label><span data-i18n="nameLabel">Nazwa</span>
+          <input type="text" id="newName" placeholder="np. Inkubacja" style="width:170px">
+        </label>
+        <label><span data-i18n="minLabel">Min</span>
+          <input type="number" id="newMin" min="0" style="width:74px">
+        </label>
+        <label><span data-i18n="secLabel">Sek</span>
+          <input type="number" id="newSec" min="0" max="59" style="width:74px">
+        </label>
+        <button class="primary" id="addTimer" data-i18n="addTimer">＋ Dodaj timer</button>
+        <div class="spacer"></div>
+        <button id="switchDevice" data-i18n="switchDevice" title="Zmień urządzenie">🔄 Urządzenie</button>
+      </div>
+      <div class="presets">
+        <span class="lbl" data-i18n="quickStart">Szybki start:</span>
+        <button data-preset="1">1 min</button>
+        <button data-preset="5">5 min</button>
+        <button data-preset="10">10 min</button>
+        <button data-preset="30">30 min</button>
+      </div>
+    </div>
+
+    <div class="empty-state" id="emptyState" style="display:none">
+      <div class="emoji">⏱️</div>
+      <span data-i18n="emptyMsg">Dodaj pierwszy timer, aby zacząć odliczanie.</span>
+    </div>
+
+    <div class="timer-grid" id="timerGrid"></div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+let lang = localStorage.getItem("labkit_lang") || "pl";
+let device = "desktop";
+let timers = [];
+let audioCtx = null;
+
+const DICT = {
+  pl: {
+    startTitle: "⏱️ Multi-timer",
+    startDesc: "Kilka nazwanych odliczań naraz — inkubacja, wirowanie, blok grzejny. Wybierz urządzenie — dopasuję układ.",
+    devPhone: "Telefon", devPhoneDesc: "Duże przyciski, wygodny dotyk",
+    devDesktop: "Komputer", devDesktopDesc: "Widok kilku timerów naraz",
+    home: "Strona główna",
+    appTitle: "⏱️ Multi-timer",
+    appSub: "Kilka nazwanych odliczań naraz — inkubacja, wirowanie, blok grzejny… Alarm po upływie.",
+    nameLabel: "Nazwa", minLabel: "Min", secLabel: "Sek",
+    addTimer: "＋ Dodaj timer",
+    switchDevice: "🔄 Urządzenie",
+    quickStart: "Szybki start:",
+    emptyMsg: "Dodaj pierwszy timer, aby zacząć odliczanie.",
+    pause: "⏸ Pauza", start: "▶ Start", resume: "↻ Znów",
+    resetTitle: "Reset", deleteTitle: "Usuń",
+    defaultName: n => "Timer " + n,
+    presetName: m => m + " min",
+  },
+  en: {
+    startTitle: "⏱️ Multi-Timer",
+    startDesc: "Run several named countdowns at once — incubation, spins, heating block. Pick your device — I'll adjust the layout.",
+    devPhone: "Phone", devPhoneDesc: "Large buttons, easy to tap",
+    devDesktop: "Computer", devDesktopDesc: "See several timers at once",
+    home: "Home",
+    appTitle: "⏱️ Multi-Timer",
+    appSub: "Run several named countdowns at once — incubation, spins, heating block… Alarm when done.",
+    nameLabel: "Name", minLabel: "Min", secLabel: "Sec",
+    addTimer: "＋ Add timer",
+    switchDevice: "🔄 Device",
+    quickStart: "Quick start:",
+    emptyMsg: "Add your first timer to start a countdown.",
+    pause: "⏸ Pause", start: "▶ Start", resume: "↻ Again",
+    resetTitle: "Reset", deleteTitle: "Delete",
+    defaultName: n => "Timer " + n,
+    presetName: m => m + " min",
+  },
+};
+function t() { return DICT[lang]; }
+
+function saveState() { localStorage.setItem("timers_state", JSON.stringify(timers)); }
+function loadState() {
+  try { timers = JSON.parse(localStorage.getItem("timers_state")) || []; } catch { timers = []; }
+}
+
+function unlockAudio() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    audioCtx = audioCtx || new AC();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+  } catch {}
+}
+function beep() {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    audioCtx = audioCtx || new AC();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    const t0 = audioCtx.currentTime;
+    [0, 0.28, 0.56].forEach(off => {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = "sine"; o.frequency.value = 880;
+      o.connect(g); g.connect(audioCtx.destination);
+      g.gain.setValueAtTime(0.0001, t0 + off);
+      g.gain.exponentialRampToValueAtTime(0.25, t0 + off + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + off + 0.22);
+      o.start(t0 + off); o.stop(t0 + off + 0.24);
+    });
+  } catch {}
+}
+
+function fmtTime(sec, total) {
+  const s = Math.max(0, Math.ceil(sec));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = s % 60;
+  const p = n => String(n).padStart(2, "0");
+  return (total >= 3600 || h > 0) ? h + ":" + p(m) + ":" + p(ss) : p(m) + ":" + p(ss);
+}
+function newId() { return "t" + Object.keys(timers).length + "_" + Math.round(Math.random() * 1e9); }
+
+function renderTimers() {
+  const now = Date.now();
+  $("emptyState").style.display = timers.length ? "none" : "block";
+  const grid = $("timerGrid");
+  grid.innerHTML = "";
+  timers.forEach(tm => {
+    const rem = tm.running ? Math.max(0, (tm.endAt - now) / 1000) : tm.remaining;
+    const card = document.createElement("div");
+    card.className = "timer-card" + (tm.done ? " done" : "");
+    const spLabel = tm.running ? t().pause : (tm.done ? t().resume : t().start);
+    card.innerHTML = `
+      <input type="text" class="name" value="${tm.name.replace(/"/g,'&quot;')}">
+      <div class="time">${fmtTime(rem, tm.total)}</div>
+      <div class="row">
+        <button class="sp-btn ${tm.running ? "running" : "stopped"}">${spLabel}</button>
+        <button class="icon-btn" title="${t().resetTitle}">↺</button>
+        <button class="icon-btn" title="${t().deleteTitle}">✕</button>
+      </div>`;
+    card.querySelector(".name").onchange = e => { tm.name = e.target.value; saveState(); };
+    card.querySelector(".sp-btn").onclick = () => toggleTimer(tm.id);
+    card.querySelectorAll(".icon-btn")[0].onclick = () => {
+      tm.running = false; tm.done = false; tm.remaining = tm.total; tm.endAt = null;
+      saveState(); renderTimers();
+    };
+    card.querySelectorAll(".icon-btn")[1].onclick = () => {
+      timers = timers.filter(x => x.id !== tm.id); saveState(); renderTimers();
+    };
+    grid.appendChild(card);
+  });
+}
+
+function toggleTimer(id) {
+  unlockAudio();
+  const now = Date.now();
+  const tm = timers.find(x => x.id === id);
+  if (!tm) return;
+  if (tm.running) {
+    tm.running = false;
+    tm.remaining = Math.max(0, (tm.endAt - now) / 1000);
+  } else {
+    const rem = tm.done ? tm.total : (tm.remaining > 0 ? tm.remaining : tm.total);
+    tm.running = true; tm.done = false; tm.remaining = rem; tm.endAt = now + rem * 1000;
+  }
+  saveState(); renderTimers();
+}
+
+function addTimer() {
+  const min = parseInt($("newMin").value) || 0, sec = parseInt($("newSec").value) || 0;
+  const dur = min * 60 + sec;
+  if (dur <= 0) return;
+  const name = ($("newName").value || "").trim() || t().defaultName(timers.length + 1);
+  timers.push({ id: newId(), name, total: dur, remaining: dur, running: false, done: false, endAt: null });
+  $("newName").value = "";
+  saveState(); renderTimers();
+}
+function addPreset(min) {
+  unlockAudio();
+  const dur = min * 60, now = Date.now();
+  timers.push({ id: newId(), name: t().presetName(min), total: dur, remaining: dur, running: true, done: false, endAt: now + dur * 1000 });
+  saveState(); renderTimers();
+}
+
+function tick() {
+  const now = Date.now();
+  let doneAny = false, running = false;
+  timers.forEach(tm => {
+    if (tm.running) {
+      running = true;
+      if (!tm.done && (tm.endAt - now) / 1000 <= 0) doneAny = true;
+    }
+  });
+  if (doneAny) {
+    beep();
+    timers.forEach(tm => {
+      if (tm.running && !tm.done && (tm.endAt - now) / 1000 <= 0) {
+        tm.running = false; tm.done = true; tm.remaining = 0;
+      }
+    });
+    saveState(); renderTimers();
+  } else if (running) {
+    renderTimers();
+  }
+}
+setInterval(tick, 250);
+
+$("addTimer").onclick = addTimer;
+document.querySelectorAll("[data-preset]").forEach(b => { b.onclick = () => addPreset(parseInt(b.dataset.preset)); });
+
+function applyStaticText() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const key = el.dataset.i18n;
+    if (typeof t()[key] === "string") el.innerHTML = t()[key];
+  });
+  document.getElementById("btnPl").classList.toggle("active", lang === "pl");
+  document.getElementById("btnEn").classList.toggle("active", lang === "en");
+}
+function setLang(l) {
+  lang = l;
+  localStorage.setItem("labkit_lang", l);
+  applyStaticText();
+  renderTimers();
+}
+document.getElementById("btnPl").onclick = () => setLang("pl");
+document.getElementById("btnEn").onclick = () => setLang("en");
+
+function applyDevice(d) {
+  device = d;
+  document.body.classList.toggle("phone", d === "phone");
+  localStorage.setItem("timers_device", d);
+  $("start").style.display = "none";
+  $("app").style.display = "block";
+  loadState();
+  applyStaticText();
+  renderTimers();
+}
+document.querySelectorAll(".device-card").forEach(card => { card.onclick = () => applyDevice(card.dataset.device); });
+$("switchDevice").onclick = () => { $("app").style.display = "none"; $("start").style.display = "flex"; };
+
+applyStaticText();
+const savedDevice = localStorage.getItem("timers_device");
+if (savedDevice) applyDevice(savedDevice);
+</script>
+</body>
+</html>

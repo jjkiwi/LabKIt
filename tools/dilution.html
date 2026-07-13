@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LabKit — Kalkulator rozcieńczeń</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+  #app { display: none; max-width: 760px; margin: 0 auto; }
+  .dil-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 14px; }
+  .dil-box { padding: 12px; border-radius: 14px; border: 2px solid var(--line); background: #faf8fd; }
+  .dil-box.active { border-color: var(--accent); background: var(--accent-soft); }
+  .dil-box .row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .dil-box .lbl { font-size: 12px; color: #7a7290; font-weight: 600; }
+  .dil-box .radio { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 4px; cursor: pointer; }
+  .dil-box input[type=radio] { accent-color: var(--accent); }
+  .dil-box input[type=number] {
+    background: #fff; text-align: right; font-size: 18px; font-weight: 600; padding: 10px;
+  }
+  .dil-box .unit { text-align: right; font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .unit-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; margin-bottom: 14px; }
+  .unit-row label { width: auto; }
+  .unit-row select { width: auto; }
+  .warning { background: #fdf1a8; color: #7a5e12; border-radius: 14px; padding: 12px 16px; font-size: 13px; margin-bottom: 16px; line-height: 1.5; }
+  .result-box { background: var(--accent-soft); border-radius: 14px; padding: 18px; text-align: center; }
+  .result-box .label { font-size: 13px; color: var(--muted); margin-bottom: 6px; }
+  .result-box .value { font-size: 28px; font-weight: 700; color: var(--text); }
+  .result-box .protocol { font-size: 13px; color: #7a7290; margin-top: 10px; line-height: 1.5; }
+</style>
+</head>
+<body>
+
+  <div class="lang-toggle">
+    <button id="btnPl" class="active">PL</button>
+    <button id="btnEn">EN</button>
+  </div>
+
+  <!-- START SCREEN -->
+  <div id="start">
+    <h1 data-i18n="startTitle">🧪 Kalkulator rozcieńczeń</h1>
+    <p data-i18n="startDesc">Reguła C1·V1 = C2·V2 — przelicz stężenia i objętości. Wybierz urządzenie — dopasuję układ.</p>
+    <div class="devices">
+      <div class="device-card" data-device="phone">
+        <div class="emoji">📱</div><div class="name" data-i18n="devPhone">Telefon</div><div class="desc" data-i18n="devPhoneDesc">Większe pola, wygodny dotyk</div>
+      </div>
+      <div class="device-card" data-device="desktop">
+        <div class="emoji">💻</div><div class="name" data-i18n="devDesktop">Komputer</div><div class="desc" data-i18n="devDesktopDesc">Szeroki widok</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app">
+    <div class="topbar">
+      <a class="home-link" href="../index.html">← <span data-i18n="home">Strona główna</span></a>
+    </div>
+    <h2 data-i18n="appTitle">🧪 Kalkulator rozcieńczeń</h2>
+    <p class="sub" data-i18n="appSub">Reguła C1·V1 = C2·V2. Zaznacz „oblicz" przy jednej wartości i uzupełnij pozostałe trzy.</p>
+
+    <div class="panel">
+      <div class="unit-row">
+        <label><span data-i18n="concUnitLabel">Jednostka stężenia</span>
+          <select id="concUnit">
+            <option>M</option><option>mM</option><option>µM</option><option>nM</option><option>%</option><option>X</option>
+          </select>
+        </label>
+        <label><span data-i18n="volUnitLabel">Jednostka objętości</span>
+          <select id="volUnit">
+            <option>mL</option><option>µL</option>
+          </select>
+        </label>
+        <div class="spacer"></div>
+        <button id="switchDevice" data-i18n="switchDevice" title="Zmień urządzenie">🔄 Urządzenie</button>
+      </div>
+      <div class="dil-grid" id="dilGrid"></div>
+    </div>
+
+    <div class="warning" id="warningBox" style="display:none"></div>
+
+    <div class="panel">
+      <div class="result-box">
+        <div class="label" data-i18n="resultLabel">Wynik</div>
+        <div class="value" id="resultMain">–</div>
+        <div class="protocol" id="protocolText" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const $ = id => document.getElementById(id);
+let lang = localStorage.getItem("labkit_lang") || "pl";
+let device = "desktop";
+
+const FIELDS = [
+  { key: "c1", labelKey: "labC1", unitKind: "conc" },
+  { key: "v1", labelKey: "labV1", unitKind: "vol" },
+  { key: "c2", labelKey: "labC2", unitKind: "conc" },
+  { key: "v2", labelKey: "labV2", unitKind: "vol" },
+];
+
+const DICT = {
+  pl: {
+    startTitle: "🧪 Kalkulator rozcieńczeń",
+    startDesc: "Reguła C1·V1 = C2·V2 — przelicz stężenia i objętości. Wybierz urządzenie — dopasuję układ.",
+    devPhone: "Telefon", devPhoneDesc: "Większe pola, wygodny dotyk",
+    devDesktop: "Komputer", devDesktopDesc: "Szeroki widok",
+    home: "Strona główna",
+    appTitle: "🧪 Kalkulator rozcieńczeń",
+    appSub: 'Reguła C1·V1 = C2·V2. Zaznacz „oblicz” przy jednej wartości i uzupełnij pozostałe trzy.',
+    concUnitLabel: "Jednostka stężenia",
+    volUnitLabel: "Jednostka objętości",
+    switchDevice: "🔄 Urządzenie",
+    labC1: "C1 — wyjściowe", labV1: "V1 — pobierane", labC2: "C2 — docelowe", labV2: "V2 — końcowe",
+    solveRadio: "oblicz",
+    resultLabel: "Wynik",
+    fillIn: "Uzupełnij pozostałe trzy pola",
+    warnHigher: "Stężenie docelowe (C2) jest wyższe niż wyjściowe (C1) — rozcieńczaniem nie da się zatężyć.",
+    warnVolMismatch: "Objętość pobierana (V1) przekracza końcową (V2) — sprawdź dane.",
+    protocol: (v1, unit, v2, diff) => `Pobierz ${v1} ${unit} stocku i dopełnij buforem do ${v2} ${unit} (dodaj ${diff} ${unit}).`,
+    locale: "pl-PL",
+  },
+  en: {
+    startTitle: "🧪 Dilution Calculator",
+    startDesc: "Rule: C1·V1 = C2·V2 — convert between concentrations and volumes. Pick your device — I'll adjust the layout.",
+    devPhone: "Phone", devPhoneDesc: "Larger fields, easy to tap",
+    devDesktop: "Computer", devDesktopDesc: "Wide view",
+    home: "Home",
+    appTitle: "🧪 Dilution Calculator",
+    appSub: 'Rule: C1·V1 = C2·V2. Mark "calculate" on one value and fill in the other three.',
+    concUnitLabel: "Concentration unit",
+    volUnitLabel: "Volume unit",
+    switchDevice: "🔄 Device",
+    labC1: "C1 — stock", labV1: "V1 — drawn", labC2: "C2 — target", labV2: "V2 — final",
+    solveRadio: "calculate",
+    resultLabel: "Result",
+    fillIn: "Fill in the other three fields",
+    warnHigher: "The target concentration (C2) is higher than the stock (C1) — dilution can't concentrate a solution.",
+    warnVolMismatch: "The drawn volume (V1) exceeds the final volume (V2) — check your numbers.",
+    protocol: (v1, unit, v2, diff) => `Draw ${v1} ${unit} of stock and top up with buffer to ${v2} ${unit} (add ${diff} ${unit}).`,
+    locale: "en-US",
+  },
+};
+
+function t() { return DICT[lang]; }
+
+let dil = { c1: "100", v1: "", c2: "10", v2: "50", solve: "v1", concUnit: "µM", volUnit: "µL" };
+
+function loadState() {
+  try {
+    const s = JSON.parse(localStorage.getItem("dilution_state"));
+    if (s) dil = s;
+  } catch {}
+}
+function saveState() { localStorage.setItem("dilution_state", JSON.stringify(dil)); }
+
+function fmt(x) {
+  if (!isFinite(x)) return "–";
+  return (Math.round(x * 100) / 100).toLocaleString(t().locale);
+}
+function pn(v) {
+  const x = parseFloat(String(v).replace(",", "."));
+  return isFinite(x) ? x : NaN;
+}
+
+function compute() {
+  let C1 = pn(dil.c1), V1 = pn(dil.v1), C2 = pn(dil.c2), V2 = pn(dil.v2);
+  const solve = dil.solve;
+  let solved = NaN;
+  if (solve === "c1") { if (V1 > 0) solved = C2 * V2 / V1; C1 = solved; }
+  else if (solve === "v1") { if (C1 > 0) solved = C2 * V2 / C1; V1 = solved; }
+  else if (solve === "c2") { if (V2 > 0) solved = C1 * V1 / V2; C2 = solved; }
+  else if (solve === "v2") { if (C2 > 0) solved = C1 * V1 / C2; V2 = solved; }
+  return { C1, V1, C2, V2, solve, solved };
+}
+
+function renderGrid() {
+  const { solve } = dil;
+  const { C1, V1, C2, V2, solved } = compute();
+  const raw = { c1: dil.c1, v1: dil.v1, c2: dil.c2, v2: dil.v2 };
+  const grid = $("dilGrid");
+  grid.innerHTML = "";
+  FIELDS.forEach(f => {
+    const isSolved = solve === f.key;
+    const unit = f.unitKind === "conc" ? dil.concUnit : dil.volUnit;
+    const dispValue = isSolved ? (isFinite(solved) ? fmt(solved) : "") : raw[f.key];
+    const box = document.createElement("div");
+    box.className = "dil-box" + (isSolved ? " active" : "");
+    box.innerHTML = `
+      <div class="row">
+        <span class="lbl">${t()[f.labelKey]}</span>
+        <label class="radio"><input type="radio" name="dilsolve" ${isSolved ? "checked" : ""}>${t().solveRadio}</label>
+      </div>
+      <input type="number" data-key="${f.key}" value="${dispValue}" ${isSolved ? "disabled" : ""}>
+      <div class="unit">${unit}</div>`;
+    box.querySelector("input[type=radio]").onchange = () => { dil.solve = f.key; saveState(); renderAll(); };
+    box.querySelector("input[type=number]").onchange = e => { dil[f.key] = e.target.value; saveState(); renderAll(); };
+    grid.appendChild(box);
+  });
+}
+
+function renderResult() {
+  const { C1, V1, C2, V2, solve, solved } = compute();
+  const solvedUnit = (solve === "c1" || solve === "c2") ? dil.concUnit : dil.volUnit;
+  const lab = { c1: "C1", v1: "V1", c2: "C2", v2: "V2" };
+  $("resultMain").textContent = isFinite(solved) ? `${lab[solve]} = ${fmt(solved)} ${solvedUnit}` : t().fillIn;
+
+  let warning = "", protocol = "";
+  if (isFinite(C1) && isFinite(V1) && isFinite(C2) && isFinite(V2) && C1 > 0 && V1 > 0 && C2 > 0 && V2 > 0) {
+    if (C2 > C1) warning = t().warnHigher;
+    else if (V1 > V2) warning = t().warnVolMismatch;
+    else protocol = t().protocol(fmt(V1), dil.volUnit, fmt(V2), fmt(V2 - V1));
+  }
+  const wb = $("warningBox");
+  wb.style.display = warning ? "block" : "none";
+  wb.textContent = warning ? "⚠️ " + warning : "";
+  const pt = $("protocolText");
+  pt.style.display = protocol ? "block" : "none";
+  pt.textContent = protocol;
+}
+
+function renderAll() { renderGrid(); renderResult(); }
+
+$("concUnit").onchange = e => { dil.concUnit = e.target.value; saveState(); renderAll(); };
+$("volUnit").onchange = e => { dil.volUnit = e.target.value; saveState(); renderAll(); };
+
+function applyStaticText() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const key = el.dataset.i18n;
+    if (typeof t()[key] === "string") el.innerHTML = t()[key];
+  });
+  $("concUnit").value = dil.concUnit;
+  $("volUnit").value = dil.volUnit;
+  document.getElementById("btnPl").classList.toggle("active", lang === "pl");
+  document.getElementById("btnEn").classList.toggle("active", lang === "en");
+}
+function setLang(l) {
+  lang = l;
+  localStorage.setItem("labkit_lang", l);
+  applyStaticText();
+  renderAll();
+}
+document.getElementById("btnPl").onclick = () => setLang("pl");
+document.getElementById("btnEn").onclick = () => setLang("en");
+
+function applyDevice(d) {
+  device = d;
+  document.body.classList.toggle("phone", d === "phone");
+  localStorage.setItem("dil_device", d);
+  $("start").style.display = "none";
+  $("app").style.display = "block";
+  loadState();
+  applyStaticText();
+  renderAll();
+}
+document.querySelectorAll(".device-card").forEach(card => { card.onclick = () => applyDevice(card.dataset.device); });
+$("switchDevice").onclick = () => { $("app").style.display = "none"; $("start").style.display = "flex"; };
+
+applyStaticText();
+const savedDevice = localStorage.getItem("dil_device");
+if (savedDevice) applyDevice(savedDevice);
+</script>
+</body>
+</html>
