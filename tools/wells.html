@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>LabKit — Licznik dołków</title>
+<link rel="stylesheet" href="../assets/style.css">
+<style>
+  #app { display: none; max-width: 1100px; margin: 0 auto; }
+  .plate-wrap { overflow-x: auto; background: var(--panel); border-radius: 18px; padding: 16px; box-shadow: var(--shadow); -webkit-overflow-scrolling: touch; }
+  table { border-collapse: collapse; margin: 0 auto; }
+  th { color: var(--muted); font-size: 12px; font-weight: 600; padding: 3px; text-align: center; }
+  td { padding: 3px; }
+  .well {
+    width: var(--well, 44px); height: var(--well, 44px); border-radius: 50%;
+    background: var(--panel2); border: 2px solid var(--line); cursor: pointer;
+    transition: box-shadow .1s;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; color: var(--muted); user-select: none;
+  }
+  .well:hover { box-shadow: 0 0 0 3px var(--accent-soft); z-index: 1; position: relative; }
+  .well.filled { color: rgba(90,70,40,.7); font-weight: 700; }
+  .well.filled::after { content: "✓"; font-size: calc(var(--well, 44px) * 0.38); }
+  .well.filled .lbl { display: none; }
+</style>
+</head>
+<body>
+
+  <div class="lang-toggle">
+    <button id="btnPl" class="active">PL</button>
+    <button id="btnEn">EN</button>
+  </div>
+
+  <!-- START SCREEN -->
+  <div id="start">
+    <h1 data-i18n="startTitle">🧪 Tracker dołków</h1>
+    <p data-i18n="startDesc">Zaznaczaj dołki w trakcie pipetowania, żeby nie pomylić, gdzie już dodano substancję. Wybierz urządzenie — dopasuję układ.</p>
+    <div class="devices">
+      <div class="device-card" data-device="phone">
+        <div class="emoji">📱</div>
+        <div class="name" data-i18n="devPhone">Telefon</div>
+        <div class="desc" data-i18n="devPhoneDesc">Duże dołki, wygodny dotyk</div>
+      </div>
+      <div class="device-card" data-device="desktop">
+        <div class="emoji">💻</div>
+        <div class="name" data-i18n="devDesktop">Komputer</div>
+        <div class="desc" data-i18n="devDesktopDesc">Pełny widok płytki</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="app">
+    <div class="topbar">
+      <a class="home-link" href="../index.html">← <span data-i18n="home">Strona główna</span></a>
+    </div>
+    <h2 data-i18n="appTitle">🧪 Tracker dołków – pipetowanie</h2>
+    <p class="sub" data-i18n="appSub">Kliknij dołek, gdy dodasz substancję. ✓ = już napełnione. Stan zapisywany w przeglądarce.</p>
+
+    <div class="toolbar">
+      <label><span data-i18n="formatLabel">Format płytki</span>
+        <select id="format">
+          <option value="2x3">6 (2×3)</option>
+          <option value="3x4">12 (3×4)</option>
+          <option value="4x6">24 (4×6)</option>
+          <option value="6x8">48 (6×8)</option>
+          <option value="8x12" selected>96 (8×12)</option>
+          <option value="16x24">384 (16×24)</option>
+        </select>
+      </label>
+      <label><span data-i18n="modeLabel">Tryb klikania</span>
+        <select id="mode">
+          <option value="toggle" data-i18n="modeToggle">Przełącz (dodaj/cofnij)</option>
+          <option value="fill" data-i18n="modeFill">Tylko dodawaj</option>
+        </select>
+      </label>
+      <div class="spacer"></div>
+      <button id="undo" data-i18n="undo" title="Cofnij ostatni dołek">↶ Cofnij</button>
+      <button id="reset" data-i18n="reset">Wyczyść</button>
+      <button id="switchDevice" data-i18n="switchDevice" title="Zmień urządzenie">🔄 Urządzenie</button>
+    </div>
+
+    <div class="substances" id="substances"></div>
+
+    <div class="plate-wrap"><div id="plate"></div></div>
+
+    <div class="stats" id="stats"></div>
+    <p class="hint" data-i18n="hint">Wybierz kolor/substancję u góry, a potem klikaj dołki w trakcie pipetowania. <b>↶ Cofnij</b> usuwa ostatnio dodany dołek.</p>
+  </div>
+
+<script>
+const COLS_LETTERS = "ABCDEFGHIJKLMNOP";
+const SUBSTANCE_COLORS = ["#a8d8ea", "#bdeac0", "#fdf1a8", "#ffc8dd", "#ffd6a5", "#d4b7f0"];
+
+const DICT = {
+  pl: {
+    startTitle: "🧪 Tracker dołków",
+    startDesc: "Zaznaczaj dołki w trakcie pipetowania, żeby nie pomylić, gdzie już dodano substancję. Wybierz urządzenie — dopasuję układ.",
+    devPhone: "Telefon", devPhoneDesc: "Duże dołki, wygodny dotyk",
+    devDesktop: "Komputer", devDesktopDesc: "Pełny widok płytki",
+    home: "Strona główna",
+    appTitle: "🧪 Tracker dołków – pipetowanie",
+    appSub: "Kliknij dołek, gdy dodasz substancję. ✓ = już napełnione. Stan zapisywany w przeglądarce.",
+    formatLabel: "Format płytki",
+    modeLabel: "Tryb klikania",
+    modeToggle: "Przełącz (dodaj/cofnij)",
+    modeFill: "Tylko dodawaj",
+    undo: "↶ Cofnij",
+    reset: "Wyczyść",
+    switchDevice: "🔄 Urządzenie",
+    hint: 'Wybierz kolor/substancję u góry, a potem klikaj dołki w trakcie pipetowania. <b>↶ Cofnij</b> usuwa ostatnio dodany dołek.',
+    statsLine: (f, t, r) => `Napełnione: <b>${f}</b> z ${t} &nbsp;•&nbsp; Pozostało: <b>${r}</b>`,
+    substances: ["Materiał 1", "Materiał 2", "Materiał 3", "Materiał 4", "Materiał 5", "Próżny/kontrola"],
+    confirmClear: "Wyczyścić całą płytkę?",
+  },
+  en: {
+    startTitle: "🧪 Well Tracker",
+    startDesc: "Tap each well as you pipette so you never lose track of what's been added. Pick your device — I'll adjust the layout.",
+    devPhone: "Phone", devPhoneDesc: "Larger wells, easy to tap",
+    devDesktop: "Computer", devDesktopDesc: "Full plate view",
+    home: "Home",
+    appTitle: "🧪 Well Tracker — pipetting",
+    appSub: "Tap a well when you add the substance. ✓ = already filled. State is saved in your browser.",
+    formatLabel: "Plate format",
+    modeLabel: "Click mode",
+    modeToggle: "Toggle (add/undo)",
+    modeFill: "Add only",
+    undo: "↶ Undo",
+    reset: "Clear",
+    switchDevice: "🔄 Device",
+    hint: 'Pick a color/substance above, then tap wells as you pipette. <b>↶ Undo</b> removes the last added well.',
+    statsLine: (f, t, r) => `Filled: <b>${f}</b> of ${t} &nbsp;•&nbsp; Remaining: <b>${r}</b>`,
+    substances: ["Material 1", "Material 2", "Material 3", "Material 4", "Material 5", "Blank/control"],
+    confirmClear: "Clear the whole plate?",
+  },
+};
+
+let lang = localStorage.getItem("labkit_lang") || "pl";
+let state = {};
+let history = [];
+let activeSub = 0;
+let device = "desktop";
+
+const $ = id => document.getElementById(id);
+function t() { return DICT[lang]; }
+function substances() {
+  return t().substances.map((name, id) => ({ id, name, color: SUBSTANCE_COLORS[id] }));
+}
+
+function dims() {
+  const [r, c] = $("format").value.split("x").map(Number);
+  return { rows: r, cols: c };
+}
+function storeKey() { return "wellplate_" + $("format").value; }
+function save() { localStorage.setItem(storeKey(), JSON.stringify(state)); }
+function load() {
+  try { state = JSON.parse(localStorage.getItem(storeKey())) || {}; }
+  catch { state = {}; }
+  history = [];
+}
+
+function wellSize() {
+  const { cols } = dims();
+  if (device === "phone") {
+    if (cols >= 24) return 26;
+    if (cols >= 12) return 34;
+    return 50;
+  } else {
+    if (cols >= 24) return 24;
+    if (cols >= 12) return 40;
+    return 48;
+  }
+}
+
+function renderSubstances() {
+  const box = $("substances");
+  box.innerHTML = "";
+  substances().forEach(s => {
+    const count = Object.values(state).filter(v => v === s.id).length;
+    const chip = document.createElement("div");
+    chip.className = "chip" + (s.id === activeSub ? " active" : "");
+    chip.innerHTML = `<span class="swatch" style="background:${s.color}"></span>
+      <span>${s.name}</span><span class="count">(${count})</span>`;
+    chip.onclick = () => { activeSub = s.id; renderSubstances(); };
+    box.appendChild(chip);
+  });
+}
+
+function renderPlate() {
+  const { rows, cols } = dims();
+  $("plate").style.setProperty("--well", wellSize() + "px");
+  const subs = substances();
+  let html = `<table><thead><tr><th></th>`;
+  for (let c = 0; c < cols; c++) html += `<th>${c + 1}</th>`;
+  html += `</tr></thead><tbody>`;
+  for (let r = 0; r < rows; r++) {
+    html += `<tr><th>${COLS_LETTERS[r]}</th>`;
+    for (let c = 0; c < cols; c++) {
+      const key = r + "-" + c;
+      const sub = state[key];
+      const filled = sub !== undefined;
+      const color = filled ? subs[sub].color : "";
+      const style = filled ? `background:${color};border-color:${color}` : "";
+      html += `<td><div class="well ${filled ? "filled" : ""}" data-key="${key}" style="${style}">
+                 <span class="lbl">${COLS_LETTERS[r]}${c + 1}</span></div></td>`;
+    }
+    html += `</tr>`;
+  }
+  html += `</tbody></table>`;
+  $("plate").innerHTML = html;
+  $("plate").querySelectorAll(".well").forEach(w => { w.onclick = () => clickWell(w.dataset.key); });
+  renderStats();
+}
+
+function clickWell(key) {
+  const mode = $("mode").value;
+  if (state[key] !== undefined) {
+    if (mode === "toggle") { delete state[key]; history = history.filter(k => k !== key); }
+    else { state[key] = activeSub; }
+  } else {
+    state[key] = activeSub;
+    history.push(key);
+  }
+  save(); renderPlate(); renderSubstances();
+}
+
+function renderStats() {
+  const { rows, cols } = dims();
+  const total = rows * cols;
+  const filled = Object.keys(state).length;
+  $("stats").innerHTML = t().statsLine(filled, total, total - filled);
+}
+
+function applyStaticText() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i18n]").forEach(el => {
+    const key = el.dataset.i18n;
+    if (t()[key] !== undefined && typeof t()[key] === "string") el.innerHTML = t()[key];
+  });
+  document.getElementById("btnPl").classList.toggle("active", lang === "pl");
+  document.getElementById("btnEn").classList.toggle("active", lang === "en");
+}
+
+function setLang(l) {
+  lang = l;
+  localStorage.setItem("labkit_lang", l);
+  applyStaticText();
+  renderSubstances();
+  renderPlate();
+}
+document.getElementById("btnPl").onclick = () => setLang("pl");
+document.getElementById("btnEn").onclick = () => setLang("en");
+
+function applyDevice(d) {
+  device = d;
+  document.body.classList.toggle("phone", d === "phone");
+  if (d === "phone" && !localStorage.getItem("device_picked")) { $("format").value = "4x6"; }
+  localStorage.setItem("device", d);
+  localStorage.setItem("device_picked", "1");
+  $("start").style.display = "none";
+  $("app").style.display = "block";
+  load();
+  applyStaticText();
+  renderSubstances();
+  renderPlate();
+}
+document.querySelectorAll(".device-card").forEach(card => { card.onclick = () => applyDevice(card.dataset.device); });
+
+$("format").onchange = () => { load(); renderPlate(); renderSubstances(); };
+$("reset").onclick = () => {
+  if (confirm(t().confirmClear)) { state = {}; history = []; save(); renderPlate(); renderSubstances(); }
+};
+$("undo").onclick = () => {
+  const last = history.pop();
+  if (last !== undefined) { delete state[last]; save(); renderPlate(); renderSubstances(); }
+};
+$("switchDevice").onclick = () => { $("app").style.display = "none"; $("start").style.display = "flex"; };
+
+applyStaticText();
+const savedDevice = localStorage.getItem("device");
+if (savedDevice) applyDevice(savedDevice);
+</script>
+</body>
+</html>
